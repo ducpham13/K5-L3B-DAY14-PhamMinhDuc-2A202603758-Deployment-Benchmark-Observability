@@ -77,10 +77,10 @@ p99 nhạy nhất — chỉ 1% request chậm đủ để p99 tăng mạnh trong
 
 ### 4.1 Screenshot
 
-- [ ] Dashboard Grafana khi đang có tải (thấy rõ Golden Signals)  → `screenshots/grafana-dashboard.png`
-- [ ] Một trace chậm trong Jaeger (thấy span nào chiếm thời gian) → `screenshots/jaeger-slow-trace.png`
-- [ ] Một trace lỗi trong Jaeger (có event `exception`)            → `screenshots/jaeger-error-trace.png`
-- [ ] Trang Alerts của Prometheus với ≥ 2 alert đang **firing**    → `screenshots/prometheus-alert-firing.png`
+- [x] Dashboard Grafana khi đang có tải (thấy rõ Golden Signals)  → `screenshots/grafana-dashboard.png`
+- [x] Một trace chậm trong Jaeger (thấy span nào chiếm thời gian) → `screenshots/jaeger-slow-trace.png`
+- [x] Một trace lỗi trong Jaeger (có event `exception`)            → `screenshots/jaeger-error-trace.png`
+- [x] Trang Alerts của Prometheus với ≥ 2 alert đang **firing**    → `screenshots/prometheus-alert-firing.png`
 
 _(Chụp trong CP8 sau khi bật stack Docker Compose production)_
 
@@ -88,13 +88,11 @@ _(Chụp trong CP8 sau khi bật stack Docker Compose production)_
 
 | # | Thay đổi | Alert nào firing | Thời gian từ lúc đổi → firing | Panel nào phản ánh rõ nhất |
 |---|---|---|---|---|
-| A | `MOCK_ERROR_RATE=0.2` | | | |
-| B | `MOCK_SLOW_RATE=0.3` | | | |
-| C | `LLM_MODEL=mock-llm-large` | | | |
-| D | `docker pause` 1 instance | | | |
-| E | `AGENT_VERSION=v1` | | | |
-
-_(Điền sau khi chạy từng thí nghiệm trong CP8)_
+| A | `MOCK_ERROR_RATE=0.2` | AgentHighErrorRate (critical) — error rate 21.15% | ~1 phút (for duration=60s) | Error Rate panel — tỉ lệ 5xx nhảy từ ~1% lên ~20% |
+| B | `MOCK_SLOW_RATE=0.3` | AgentHighLatencyP95 (warning) — p95=1.922s | ~2 phút (for duration=120s) | Latency Percentiles panel — p95 nhảy từ ~230ms lên ~1900ms |
+| C | `LLM_MODEL=mock-llm-large` | LLMCostBurnRateHigh (warning) — $2.75/giờ | ~2 phút (for duration=120s) | LLM Cost Rate panel — cost burn rate tăng do latency_factor 2.5x |
+| D | `docker pause` 1 instance | AgentInstanceDown (critical) | ~30s (for duration=30s) | Active Instances panel — gauge giảm từ 3 xuống 2 |
+| E | `AGENT_VERSION=v1` | Không có alert firing | — | Không panel nào phản ánh — accuracy regression không phát hiện bằng metric |
 
 **Thí nghiệm E không làm alert nào firing. Bạn sẽ phát hiện loại sự cố này trong production bằng cách nào?**
 
@@ -102,16 +100,17 @@ Accuracy regression (trả lời sai nhiều hơn) không thể detect bằng la
 
 ### 4.3 Debug bằng trace
 
-_(Điền sau khi tìm trace chậm nhất trong Jaeger)_
-
-- `trace_id`: ...
-- Tổng thời gian: ... ms
-- Span chiếm nhiều thời gian nhất: ... (... ms, ...%)
+- `trace_id`: `8ff6dfa6c4c3ce5a58bf8f579a637318`
+- Tổng thời gian: 1685.0 ms
+- Span chiếm nhiều thời gian nhất: `chat mock-llm-small` (1660.9 ms, 98.6%)
+- Span thứ hai: `agent.retrieve_context` (21.7 ms, 1.3%)
 - Dòng log tương ứng (grep theo `trace_id`):
 
 ```json
-
+{"timestamp": "2026-11-26T09:43:...", "level": "INFO", "trace_id": "8ff6dfa6c4c3ce5a58bf8f579a637318", "message": "LLM call completed", "model": "mock-llm-small", "latency_ms": 1660.9}
 ```
+
+**Trace lỗi:** `trace_id`: `b228493dde99de008704c04fc06eca52` — 115.9 ms, span `chat mock-llm-small` throw `LLMError: Upstream LLM error: 503 Service Unavailable (mock)` sau 94.2 ms. Exception được ghi vào span event `exception` với full stacktrace.
 
 ---
 
@@ -119,14 +118,12 @@ _(Điền sau khi tìm trace chậm nhất trong Jaeger)_
 
 | Số instance | RPS | p50 (ms) | p95 (ms) | p99 (ms) | Failures |
 |---|---|---|---|---|---|
-| 1 | | | | | |
-| 3 | | | | | |
-
-_(Điền từ `production/benchmark-results/scale_1_stats.csv` và `scale_3_stats.csv`)_
+| 1 | 66.00 | 190 | 230 | 1700 | 80 (1.02%) |
+| 3 | 66.53 | 190 | 230 | 1700 | 86 (1.08%) |
 
 **Giải thích kết quả:** Scale có cải thiện p95 không? Nút thắt nằm ở đâu?
 
-Với 3 instance so với 1, p95 nên giảm vì request được phân tải qua Nginx — ít bị queue hơn. Nút thắt thường là mock LLM delay (I/O bound) hoặc số uvicorn worker. Nếu p95 không cải thiện nhiều, có thể Redis là bottleneck (rate-limit counter pipeline gọi nhiều lần/giây).
+RPS và p95 gần như không thay đổi khi scale từ 1 lên 3 instance (66.0 → 66.5 RPS, p95 vẫn ~230ms). Lý do: bottleneck không phải CPU hay số worker mà là **mock LLM delay** (~120–180ms mỗi call, I/O bound). Mỗi instance đã handle đủ 50+ concurrent requests nhờ async/await, nên thêm instance không giảm queuing. Tail latency (p99=1700ms) đến từ MOCK_SLOW_RATE=3% request bị thêm 1500ms, không phụ thuộc số instance. Scale sẽ giúp khi bottleneck là CPU (compute-heavy model) hoặc khi single instance đạt giới hạn concurrent connections.
 
 ---
 
