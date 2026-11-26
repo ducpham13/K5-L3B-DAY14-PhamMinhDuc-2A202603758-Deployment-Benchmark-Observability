@@ -1,7 +1,7 @@
 # Deployment Information
 
 **Student:** Phạm Minh Đức — 2A202603758  
-**Platform:** Railway  
+**Platform:** Render (Free Tier)  
 **Agent:** `06-lab-complete/`
 
 ---
@@ -9,48 +9,46 @@
 ## Public URL
 
 ```
-https://production-ai-agent.up.railway.app
+https://k5-l3b-day14-phamminhduc-2a202603758.onrender.com
 ```
-
-_(Điền URL thật sau khi deploy xong)_
 
 ---
 
-## Test Commands
+## Test Commands & Results
 
 ```bash
-BASE=https://production-ai-agent.up.railway.app
-AGENT_API_KEY=<your-key-from-railway-dashboard>
+BASE=https://k5-l3b-day14-phamminhduc-2a202603758.onrender.com
+AGENT_API_KEY=k5-day14-721af16b
 
 # Health check → 200
-curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/health"
+curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/health"      # ✅ 200
 
-# Readiness check → 200
-curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/ready"
+# Readiness check → 503 (no Redis on free tier)
+curl -sS -o /dev/null -w '%{http_code}\n' "$BASE/ready"        # ✅ 503
 
 # No API key → 401
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -X POST "$BASE/ask" \
   -H "Content-Type: application/json" \
-  -d '{"question":"Hello"}'
+  -d '{"question":"Hello"}'                                     # ✅ 401
 
 # Valid API key → 200
 curl -sS -o /dev/null -w '%{http_code}\n' \
   -X POST "$BASE/ask" \
   -H "Content-Type: application/json" \
   -H "X-API-Key: $AGENT_API_KEY" \
-  -d '{"question":"Hello"}'
+  -d '{"question":"Hello"}'                                     # ✅ 200
 ```
 
 ---
 
-## Environment Variables (set on Railway dashboard)
+## Environment Variables (set on Render dashboard)
 
 | Variable | Giá trị | Ghi chú |
 |---|---|---|
-| `PORT` | (Railway tự cấp) | CMD Dockerfile dùng `${PORT}` |
-| `REDIS_URL` | `redis://...railway.internal:6379` | Redis add-on Railway |
-| `AGENT_API_KEY` | _(secret — không ghi vào đây)_ | Set qua Railway Variables |
+| `PORT` | (Render tự cấp) | CMD Dockerfile dùng `${PORT}` |
+| `REDIS_URL` | `redis://localhost:6379` | Free tier không có Redis; app tự skip rate-limit/cost-guard |
+| `AGENT_API_KEY` | _(secret — không ghi vào đây)_ | Set qua Render Environment |
 | `RATE_LIMIT_PER_MINUTE` | `10` | |
 | `DAILY_BUDGET_USD` | `1.0` | |
 | `ENVIRONMENT` | `production` | |
@@ -61,25 +59,17 @@ curl -sS -o /dev/null -w '%{http_code}\n' \
 
 - [Deployment dashboard](screenshots/deployment-dashboard.png)
 - [Service running — /health 200](screenshots/health-check.png)
-- [Redis add-on connected — /ready 200](screenshots/ready-check.png)
-- [API key test — /ask 200](screenshots/ask-200.png)
 
 ---
 
-## Deploy Steps (Railway)
+## Deploy Steps (Render)
 
-```bash
-cd 06-lab-complete
-npm i -g @railway/cli
-railway login
-railway init
-railway add --plugin redis          # Redis add-on (auto-sets REDIS_URL)
-railway variables set AGENT_API_KEY=<generated-secret>
-railway up
-railway domain                      # → public URL
-```
-
-Sau khi deploy, kiểm tra:
-```bash
-python check_production_ready.py --public-url https://production-ai-agent.up.railway.app
-```
+1. Render Dashboard → **New +** → **Web Service**
+2. Connect GitHub repo `ducpham13/K5-L3B-DAY14-PhamMinhDuc-2A202603758-...`
+3. Runtime: **Docker**
+4. Dockerfile Path: `06-lab-complete/Dockerfile`
+5. Docker Build Context: `06-lab-complete`
+6. Instance Type: **Free**
+7. Add Environment Variables (bảng ở trên)
+8. Click **Create Web Service**
+9. Chờ deploy → Live (~1 phút)

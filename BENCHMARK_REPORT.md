@@ -25,12 +25,10 @@
 
 | Concurrency | RPS | p50 (ms) | p95 (ms) | p99 (ms) | Error rate | SLO |
 |---|---|---|---|---|---|---|
-| 1 | | | | | | |
-| 10 | | | | | | |
-| 50 | | | | | | |
-| 100 | | | | | | |
-
-_(Điền sau khi chạy load_test.py theo CP7 — xem `develop/reports/load_v2_c*.json`)_
+| 1 | 4.09 | 197.7 | 236.0 | 1716.3 | 0.67% | ✅ PASS |
+| 10 | 39.13 | 187.3 | 439.6 | 1705.1 | 1.0% | ✅ PASS |
+| 50 | 97.62 | 197.8 | 500.0 | 1702.8 | 1.67% | ✅ PASS |
+| 100 | 61.05 | 542.1 | 2732.4 | 2989.9 | 1.0% | ❌ FAIL |
 
 **Nhận xét:** RPS có tăng tuyến tính theo concurrency không? Vì sao?
 
@@ -42,11 +40,9 @@ RPS tăng khi tăng concurrency từ 1 lên ~10–20 vì idle time của từng 
 
 | `MOCK_SLOW_RATE` | avg (ms) | p95 (ms) | p99 (ms) |
 |---|---|---|---|
-| 0 | | | |
-| 0.03 (mặc định) | | | |
-| 0.1 | | | |
-
-_(Điền sau khi chạy ba lần với `--concurrency 20 --requests 300`)_
+| 0 | 202.0 | 442.2 | 450.8 |
+| 0.03 (mặc định) | 236.4 | 467.5 | 1690.5 |
+| 0.1 | 353.2 | 1694.6 | 1727.2 |
 
 **Nhận xét:** Chỉ số nào nhạy nhất với request chậm? Vì sao SLO không nên đặt theo average?
 
@@ -58,21 +54,18 @@ p99 nhạy nhất — chỉ 1% request chậm đủ để p99 tăng mạnh trong
 
 | Chỉ số | Agent v1 | Agent v2 | Agent v2 (sau khi sửa KB) |
 |---|---|---|---|
-| Accuracy | | | |
-| Avg tokens / câu | | | |
-| Tổng cost (USD) | | | |
-| Cost / câu đúng (USD) | | | |
-| Quality gate | PASS / FAIL | PASS / FAIL | PASS / FAIL |
-
-_(Điền từ `reports/eval_v1.json`, `reports/eval_v2.json`, `reports/eval_v2_fixed.json`)_
+| Accuracy | 4.3% (1/23) | 91.3% (21/23) | 100% (23/23) |
+| Avg tokens / câu | 57.5 | 109.1 | 115.7 |
+| Tổng cost (USD) | $0.000409 | $0.000762 | $0.000808 |
+| Cost / câu đúng (USD) | $0.000409 | $0.000036 | $0.000035 |
+| Quality gate | ❌ FAIL | ✅ PASS | ✅ PASS |
 
 **Những câu v2 trả lời sai ban đầu và cách sửa:**
 
 | ID | Keyword bị thiếu | Bạn đã sửa gì |
 |---|---|---|
-| | | |
-
-_(Điền sau khi chạy eval và xem diff của `KNOWLEDGE_BASE` trong `develop/utils/mock_llm.py`)_
+| security-02 | token, hết hạn, chữ ký | Thêm entry JWT vào KNOWLEDGE_BASE: JWT chứa payload có chữ ký (signature) và thời gian hết hạn, so sánh với API key tĩnh |
+| scaling-03 | cpu, memory, custom metrics | Thêm entry HPA vào KNOWLEDGE_BASE: Kubernetes HPA scale dựa trên CPU, memory, hoặc custom metrics |
 
 **Nhận xét về trade-off chất lượng / chi phí / latency giữa v1 và v2:**
 
