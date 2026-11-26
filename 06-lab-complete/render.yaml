@@ -2,20 +2,17 @@ services:
   - type: web
     name: production-ai-agent
     runtime: docker
+    dockerfilePath: ./06-lab-complete/Dockerfile
+    dockerContext: ./06-lab-complete
     healthCheckPath: /health
     envVars:
       - key: AGENT_API_KEY
         generateValue: true
       - key: REDIS_URL
-        fromService:
-          type: redis
-          name: agent-redis
-          property: connectionString
+        value: "redis://localhost:6379/0"
       - key: RATE_LIMIT_PER_MINUTE
         value: "10"
       - key: DAILY_BUDGET_USD
         value: "1.0"
-
-databases:
-  - name: agent-redis
-    type: redis
+      - key: ENVIRONMENT
+        value: "production"
