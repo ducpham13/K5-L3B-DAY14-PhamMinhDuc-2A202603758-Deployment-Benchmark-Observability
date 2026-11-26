@@ -232,7 +232,7 @@ Nếu state (session, rate-limit counter, budget) lưu trong `dict` Python (RAM 
 
 ---
 
-## Part 6: Final Project — PASS 12/12
+## Part 6: Final Project — 11/12 (Windows: SIGTERM không gửi được, Docker stop ✅)
 
 ```
 ================================================================
@@ -240,17 +240,61 @@ Nếu state (session, rate-limit counter, budget) lưu trong `dict` Python (RAM 
 ================================================================
 
 ✅ 1. Dockerfile (multi-stage, < 500 MB)
+     ✅ Multi-stage build (≥ 2 lệnh FROM)
+     ✅ Base image gọn — stage cuối dùng python:3.11-slim
+     ✅ Chạy bằng user non-root
+     ✅ Có HEALTHCHECK
+     ✅ Docker: build image thành công — 4s
+     ✅ Docker: image < 500 MB — 238 MB
+     ✅ Docker: container chạy được, GET /health → 200
+
 ✅ 2. docker-compose.yml (agent + redis)
+     ✅ Có service agent (build từ Dockerfile) + redis
+     ✅ Service agent kết nối redis (REDIS_URL + depends_on)
+
 ✅ 3. .dockerignore
+     ✅ .dockerignore loại trừ .env (secrets)
+     ✅ .dockerignore loại trừ __pycache__, venv
+
 ✅ 4. Health check endpoint (GET /health)
+     ✅ Khi chạy: GET /health → 200 — uvicorn --workers 2
+
 ✅ 5. Readiness endpoint (GET /ready)
+     ✅ Khi chạy: GET /ready → 200
+     ✅ Khi chạy: Redis mất kết nối → /ready 503 (còn /health vẫn 200)
+
 ✅ 6. API Key authentication
+     ✅ Khi chạy: thiếu / sai API key → 401
+     ✅ Khi chạy: API key đúng → 200
+
 ✅ 7. Rate limiting
+     ✅ Khi chạy: vượt giới hạn → 429 — 429 sau 5 request thành công
+     ✅ Khi chạy: state nằm trong Redis — restart agent vẫn bị 429
+
 ✅ 8. Cost guard
+     ✅ Khi chạy: hết budget → 402 — 402 ở request thứ 1
+
 ✅ 9. Config từ environment variables
+     ✅ app/config.py đọc biến môi trường
+     ✅ .env.example liệt kê đủ biến cấu hình
+     ✅ .env nằm trong .gitignore
+     ✅ Không hard-code secret trong code
+     ✅ Khi chạy: agent dùng AGENT_API_KEY và RATE_LIMIT_PER_MINUTE từ env
+
 ✅ 10. Structured logging
-✅ 11. Graceful shutdown
+     ✅ Code ghi log dạng JSON
+     ✅ Khi chạy: mọi dòng log của app là JSON hợp lệ — 7 dòng JSON
+
+⚠️  11. Graceful shutdown
+     ✅ Code xử lý SIGTERM / lifespan shutdown
+     ⚠️  SIGTERM — Windows không gửi được SIGTERM (giới hạn OS, không phải lỗi code)
+     ✅ Docker: `docker stop` tắt êm (exit code 0, < 10s) — exit code 0, 0.6s
+
 ✅ 12. Public URL ready (Railway / Render config)
+     ✅ railway.toml: builder + healthcheckPath = "/health"
+     ✅ render.yaml: web service + healthCheckPath /health
+     ✅ render.yaml: secret không ghi thẳng giá trị (generateValue / sync: false)
+     ✅ App lắng nghe theo biến PORT do platform cấp
 
 ================================================================
   📋 Checklist Deliverable
@@ -264,12 +308,10 @@ Nếu state (session, rate-limit counter, budget) lưu trong `dict` Python (RAM 
      ✅ Cost guard
      ✅ Config từ environment variables
      ✅ Structured logging
-     ✅ Graceful shutdown
+     ⚠️  Graceful shutdown (Docker stop ✅, SIGTERM host: Windows không hỗ trợ)
      ✅ Public URL ready (Railway / Render config)
 ----------------------------------------------------------------
-  Result: 12/12 tiêu chí đạt
-  🎉 PASS 12/12 — PRODUCTION READY! Deploy nào!
+  Result: 11/12 tiêu chí đạt · 42/42 checks passed
+  Môi trường: Windows 11 Pro, Docker Desktop 29.9.3, Python 3.12
 ================================================================
 ```
-
-_(Paste output thật sau khi chạy đầy đủ trong WSL2 với Docker)_
